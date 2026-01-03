@@ -1,1 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OPENAIFM – Text to Speech</title>
 
+<style>
+:root {
+  --bg:#0b0f1a;
+  --card:#131a2a;
+  --accent:#00e5ff;
+  --text:#ffffff;
+}
+
+body {
+  margin:0;
+  font-family: system-ui, sans-serif;
+  background:var(--bg);
+  color:var(--text);
+}
+
+.container {
+  max-width:900px;
+  margin:auto;
+  padding:20px;
+}
+
+h1 {
+  text-align:center;
+  color:var(--accent);
+}
+
+.card {
+  background:var(--card);
+  padding:20px;
+  border-radius:16px;
+  box-shadow:0 0 20px rgba(0,229,255,.15);
+}
+
+textarea {
+  width:100%;
+  height:130px;
+  border-radius:12px;
+  border:none;
+  padding:15px;
+  font-size:16px;
+  resize:none;
+}
+
+select, button {
+  width:100%;
+  padding:14px;
+  margin-top:12px;
+  border-radius:12px;
+  border:none;
+  font-size:16px;
+}
+
+select { background:#0f172a; color:white; }
+
+button {
+  background:var(--accent);
+  color:#000;
+  font-weight:bold;
+  cursor:pointer;
+}
+
+button.secondary {
+  background:#334155;
+  color:white;
+}
+
+.row {
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:12px;
+}
+
+@media(max-width:600px){
+  .row { grid-template-columns:1fr; }
+}
+
+.hidden { display:none; }
+audio { width:100%; margin-top:12px; }
+</style>
+</head>
+
+<body>
+<div class="container">
+<h1>OPENAIFM</h1>
+
+<div class="card">
+
+<textarea id="text" placeholder="Enter text here..."></textarea>
+
+<select id="voiceSelect"></select>
+
+<select id="style">
+  <option value="normal">Normal Voice</option>
+  <option value="story">Storytelling Voice</option>
+  <option value="flute">Fluting Soft Voice</option>
+  <option value="musical">Musical Voice</option>
+  <option value="sweet">Sweet Calm Voice</option>
+</select>
+
+<div class="row">
+  <button onclick="generate()">🎙 Generate Speech</button>
+  <button class="secondary" onclick="stopSpeech()">⛔ Stop</button>
+</div>
+
+<audio id="player" controls class="hidden"></audio>
+<a id="download" class="hidden" download="openaifm-voice.webm">
+  <button class="secondary">⬇ Download Speech</button>
+</a>
+
+</div>
+</div>
+
+<script>
+const synth = speechSynthesis;
+const voiceSelect = document.getElementById("voiceSelect");
+const player = document.getElementById("player");
+const downloadLink = document.getElementById("download");
+
+let mediaRecorder;
+let audioChunks = [];
+
+function loadVoices(){
+  const voices = synth.getVoices();
+  voiceSelect.innerHTML = "";
+  voices.forEach((v,i)=>{
+    const opt = document.createElement("option");
+    opt.value=i;
+    opt.textContent=`${v.name} (${v.lang})`;
+    voiceSelect.appendChild(opt);
+  });
+}
+speechSynthesis.onvoiceschanged = loadVoices;
+loadVoices();
+
+function generate(){
+  const text = document.getElementById("text").value.trim();
+  if(!text){
+    stopSpeech();
+    return;
+  }
+
+  audioChunks=[];
+  player.classList.add("hidden");
+  downloadLink.classList.add("hidden");
+
+  const utter = new SpeechSynthesisUtterance(text);
+  utter.voice = synth.getVoices()[voiceSelect.value];
+
+  const style = document.getElementById("style").value;
+  utter.rate = 0.9;
+  utter.pitch = 0.8;
+
+  if(style==="story"){ utter.rate=0.85; }
+  if(style==="flute"){ utter.pitch=1.2; utter.rate=0.8; }
+  if(style==="musical"){ utter.pitch=1.4; }
+  if(style==="sweet"){ utter.pitch=1.1; utter.rate=0.75; }
+
+  const stream = new MediaStream();
+  const ctx = new AudioContext();
+  const dest = ctx.createMediaStreamDestination();
+  stream.addTrack(dest.stream.getAudioTracks()[0]);
+
+  mediaRecorder = new MediaRecorder(dest.stream);
+  mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+  mediaRecorder.onstop = ()=>{
+    const blob = new Blob(audioChunks,{type:"audio/webm"});
+    const url = URL.createObjectURL(blob);
+    player.src=url;
+    downloadLink.href=url;
+    player.classList.remove("hidden");
+    downloadLink.classList.remove("hidden");
+  };
+
+  mediaRecorder.start();
+  synth.speak(utter);
+
+  utter.onend = ()=>{
+    mediaRecorder.stop();
+  };
+}
+
+function stopSpeech(){
+  synth.cancel();
+  if(mediaRecorder && mediaRecorder.state==="recording"){
+    mediaRecorder.stop();
+  }
+}
+</script>
+
+</body>
+</html>
